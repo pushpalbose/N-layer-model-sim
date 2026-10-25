@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N-Layer Greenhouse Model</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background:#f6f7f9; color:#0f172a; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.04); }
+  .label { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#64748b; font-weight:600; }
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:4px; background:#e2e8f0; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#0f172a; border:2px solid #fff; box-shadow:0 0 0 1px #0f172a; cursor:pointer; }
+  input[type=range]::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#0f172a; border:2px solid #fff; cursor:pointer; }
+  .seg button { flex:1; padding:7px 4px; font-size:13px; color:#475569; border-radius:8px; transition:all .15s; }
+  .seg button.on { background:#0f172a; color:#fff; }
+  .btn { padding:8px 14px; border-radius:9px; font-size:13px; font-weight:500; border:1px solid #e2e8f0; background:#fff; color:#0f172a; transition:all .15s; }
+  .btn:hover { background:#f1f5f9; }
+  .btn.primary { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.primary:hover { background:#1e293b; }
+  .field { border:1px solid #e2e8f0; border-radius:9px; padding:7px 10px; font-size:14px; width:100%; background:#fff; }
+  .field:focus { outline:2px solid #0f172a; outline-offset:-1px; }
+  td, th { padding:9px 10px; text-align:left; }
+  tbody tr { border-top:1px solid #eef0f3; }
+  .num { font-variant-numeric:tabular-nums; }
+  .selcol { background:#fff7ed; }
+  .dev { display:block; font-size:11px; color:#94a3b8; }
+  .x { color:#94a3b8; font-size:18px; line-height:1; padding:0 6px; }
+  .x:hover { color:#0f172a; }
+</style>
+</head>
+<body>
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <header class="mb-6">
+    <p class="label">Engineering Physics &middot; SDG 13 Climate Action</p>
+    <h1 class="text-2xl md:text-3xl font-semibold tracking-tight mt-1">N-Layer Greenhouse Model</h1>
+    <p class="text-slate-500 mt-1 text-sm">Run the jar experiment or the idealised atmosphere, stop at any time cap, and log temperatures into an observation table.</p>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- ============ LEFT ============ -->
+    <section class="lg:col-span-5 space-y-5">
+      <div class="card p-5 space-y-5">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold">Controls</h2>
+          <button id="preset" class="btn">Lab default</button>
+        </div>
+
+        <div>
+          <span class="label block mb-2">Model</span>
+          <div id="modeSeg" class="seg flex gap-1 p-1 bg-slate-100 rounded-xl">
+            <button data-m="lab" class="on">Lab jars</button>
+            <button data-m="earth">Earth atmosphere</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="label">Layers, N</span><span id="nVal" class="num font-semibold">0</span>
+          </div>
+          <input id="nSlider" type="range" min="0" max="10" step="1" value="0">
+        </div>
+
+        <div>
+          <div class="flex justify-between items-baseline mb-2">
+            <span id="sLabel" class="label">Lamp intensity (W/m&sup2;)</span><span id="sVal" class="num font-semibold">1000</span>
+          </div>
+          <input id="sSlider" type="range" min="200" max="2000" step="10" value="1000">
+        </div>
+
+        <div>
+          <span class="label block mb-2">Surface material</span>
+          <div id="matSeg" class="seg flex gap-1 p-1 bg-slate-100 rounded-xl">
+            <button data-m="soil" class="on">Dark soil</button>
+            <button data-m="sand">Light sand</button>
+            <button data-m="water">Water</button>
+          </div>
+          <p id="matNote" class="text-xs text-slate-500 mt-2"></p>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="label">Time cap (minutes)</span>
+            <span class="text-xs text-slate-500">simulation stops here</span>
+          </div>
+          <div class="flex gap-3 items-center">
+            <input id="capNum" type="number" min="1" max="240" step="1" value="20" class="field num" style="width:90px">
+            <input id="capSlider" type="range" min="1" max="240" step="1" value="20">
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-1">
+          <button id="play" class="btn primary">Pause</button>
+          <button id="reset" class="btn">Restart</button>
+        </div>
+      </div>
+
+      <div class="card p-3">
+        <div class="flex items-center justify-between px-2 pt-1 pb-2">
+          <h2 class="font-semibold">Atmospheric column</h2>
+          <div class="flex items-center gap-3 text-xs text-slate-500">
+            <span class="inline-flex items-center gap-1"><i style="background:#f59e0b" class="inline-block w-2 h-2 rounded-full"></i>Shortwave</span>
+            <span class="inline-flex items-center gap-1"><i style="background:#f87171" class="inline-block w-2 h-2 rounded-full"></i>Infrared</span>
+          </div>
+        </div>
+        <canvas id="scene" class="w-full rounded-lg" style="height:460px; display:block;"></canvas>
+      </div>
+    </section>
+
+    <!-- ============ RIGHT ============ -->
+    <section class="lg:col-span-7 space-y-5">
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="card p-4"><div class="label">Layers N</div><div id="rN" class="text-2xl font-semibold num mt-1">0</div><div id="rNsub" class="text-xs text-slate-500">open</div></div>
+        <div class="card p-4"><div class="label">Temperature</div><div id="rTs" class="text-2xl font-semibold num mt-1">--</div><div id="rTsK" class="text-xs text-slate-500 num">--</div></div>
+        <div class="card p-4"><div class="label">Equilibrium</div><div id="rEq" class="text-2xl font-semibold num mt-1">--</div><div id="rEqK" class="text-xs text-slate-500 num">--</div></div>
+        <div class="card p-4"><div class="label">Elapsed / cap</div><div class="text-2xl font-semibold num mt-1"><span id="rT">0.0</span><span class="text-slate-400 text-base"> / <span id="rCap">20</span></span></div><div class="text-xs text-slate-500">minutes</div></div>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold">Temperature vs. time</h2>
+          <div id="unitSeg" class="seg flex gap-1 p-1 bg-slate-100 rounded-lg" style="width:110px">
+            <button data-u="C" class="on">&deg;C</button>
+            <button data-u="K">K</button>
+          </div>
+        </div>
+        <div style="height:290px"><canvas id="chart"></canvas></div>
+      </div>
+
+      <!-- Observation table -->
+      <div class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h2 class="font-semibold">Observation table</h2>
+          <div class="flex gap-2">
+            <button id="addRow" class="btn primary">Add row</button>
+            <button id="dropRow" class="btn">Drop row</button>
+            <button id="fillLab" class="btn">Use lab times</button>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Add a row to log the simulated temperature of the three jars (N = 0, 1, 2) at that time. A new row uses the current time cap, and any time can be edited. Under each lab-time value, the difference from your measured data is shown.</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-slate-500">
+              <tr>
+                <th class="label" style="width:130px">Time (min)</th>
+                <th class="label col0">Jar N = 0</th>
+                <th class="label col1">Jar N = 1</th>
+                <th class="label col2">Jar N = 2</th>
+                <th style="width:36px"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <p id="emptyMsg" class="text-sm text-slate-400 py-6 text-center">No rows yet. Set a time cap and press Add row.</p>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="font-semibold mb-2">Scientific inference</h2>
+        <div id="insight" class="text-sm text-slate-700 leading-relaxed space-y-2"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   TWO MODELS, ONE INTERFACE
+   LAB JARS (calibrated to the measured jar data, 22 C start):
+       dT/dt = (dT_eq - dT) / tau,   dT_eq = 8 C * (S/1000) * k * (1 + b*N)
+       tau   = 7 min * (1 + 0.25*N) * (C/900)
+     Each film layer reduces heat loss, so the jar rises further above
+     ambient and takes slightly longer to settle. b = 0.42 is a fit to
+     the N = 0, 1, 2 equilibria (30.0, 33.5, 36.5 C).
+   EARTH (idealised N-layer radiative model, massless layers):
+       C dTs/dt = S_abs - sigma*Ts^4/(N+1),  Ts_eq = Teff*(N+1)^(1/4)
+   ===================================================================== */
+const SIGMA = 5.670e-8, ALBEDO = 0.3, T_OBS = 288.15;
+const LAB_T0 = 295.15;                       // 22 C
+const LAB_DT0 = 8, LAB_B = 0.42, LAB_TAU0 = 7, LAB_TAU_B = 0.25;
+
+// Measured data from the report: rows at 0,5,10,15,20 min; columns N=0,1,2.
+const LAB_OBS = { 0:[22,22,22], 5:[25.5,26.2,27.0], 10:[28.0,29.8,31.5], 15:[29.5,32.2,34.5], 20:[30.0,33.5,36.5] };
+const LAB_OBS_POINTS = [0,5,10,15,20];
+
+const MATERIALS = {
+  soil:  { C: 900,  k: 1.00, note: 'Absorbs strongly, moderate heat capacity.' },
+  sand:  { C: 700,  k: 0.80, note: 'Reflects more light, so a smaller temperature rise.' },
+  water: { C: 3200, k: 0.95, note: 'High heat capacity, so it responds slowly.' }
+};
+
+const state = { mode:'lab', N:0, S:1000, mat:'soil', cap:20, Ts:LAB_T0, t:0, playing:true, unit:'C', rows:[] };
+
+const $ = id => document.getElementById(id);
+const tex = s => katex.renderToString(s, { output:'mathml', throwOnError:false });
+const conv = K => state.unit === 'C' ? K - 273.15 : K;
+const unitLbl = () => state.unit === 'C' ? '\u00B0C' : 'K';
+const T0 = () => state.mode === 'lab' ? LAB_T0 : T_OBS;
+const speed = () => state.mode === 'lab' ? 1.5 : 4;        // simulated minutes per real second
+const mat = () => MATERIALS[state.mat];
+
+/* ---------- physics ---------- */
+function labParams(N) { const m = mat(); return { eq: LAB_DT0*(state.S/1000)*m.k*(1+LAB_B*N), tau: LAB_TAU0*(1+LAB_TAU_B*N)*(m.C/900) }; }
+const absorbed = () => mat().k * state.S * (1 - ALBEDO) / 4;
+const Teff = () => Math.pow(absorbed() / SIGMA, 0.25);
+function Teq(N) { return state.mode === 'lab' ? LAB_T0 + labParams(N).eq : Teff() * Math.pow(N + 1, 0.25); }
+
+// Advance a temperature (K) by dtMin minutes for N layers.
+function advance(Ts, N, dtMin) {
+  if (state.mode === 'lab') {
+    const p = labParams(N); return Ts + (LAB_T0 + p.eq - Ts) * (1 - Math.exp(-dtMin / p.tau));
+  }
+  const C = mat().C, S = absorbed(), n = Math.max(1, Math.round(dtMin * 60)), h = dtMin * 60 / n;
+  for (let i = 0; i < n; i++) Ts += h * (S - SIGMA * Math.pow(Ts, 4) / (N + 1)) / C;
+  return Ts;
+}
+// Temperature in deg C of the N-layer system at time t, starting from the initial state.
+function tempAt(N, t) { return advance(T0(), N, t) - 273.15; }
+
+/* ---------- chart ---------- */
+const chart = new Chart($('chart'), {
+  type: 'line',
+  data: { datasets: [
+    { label:'Simulated', data:[], borderColor:'#0f172a', borderWidth:2, pointRadius:0, tension:.25 },
+    { label:'Model equilibrium', data:[], borderColor:'#2563eb', borderWidth:1.5, borderDash:[2,4], pointRadius:0 },
+    { label:'Earth observed mean (288 K / 15 \u00B0C)', data:[], borderColor:'#d97706', borderWidth:1.5, borderDash:[7,5], pointRadius:0, hidden:true },
+    { label:'Lab measured (report)', data:[], showLine:false, borderColor:'#d97706', backgroundColor:'#fff', borderWidth:2, pointRadius:5, pointStyle:'rectRot' }
+  ]},
+  options: {
+    animation:false, responsive:true, maintainAspectRatio:false, parsing:false,
+    interaction:{ mode:'nearest', axis:'x', intersect:false },
+    plugins: {
+      legend:{ position:'bottom', labels:{ boxWidth:18, boxHeight:2, font:{size:11}, color:'#475569', filter:i => !i.hidden } },
+      tooltip:{ callbacks:{ title:it => it[0].parsed.x.toFixed(1)+' min', label:c => c.dataset.label.split(' (')[0]+': '+conv(c.parsed.y).toFixed(1)+' '+unitLbl() } }
+    },
+    scales: {
+      x:{ type:'linear', min:0, max:20, title:{display:true,text:'Time (minutes)',color:'#64748b',font:{size:11}}, grid:{color:'#eef0f3'}, ticks:{color:'#64748b'} },
+      y:{ title:{display:true,text:'Temperature',color:'#64748b',font:{size:11}}, grid:{color:'#eef0f3'}, ticks:{color:'#64748b',callback:v=>conv(v).toFixed(0)+' '+unitLbl()} }
+    }
+  }
+});
+let lastPoint = -1;
+function refreshGuides() {
+  const cap = state.cap, d = chart.data.datasets;
+  d[1].data = [{x:0,y:Teq(state.N)},{x:cap,y:Teq(state.N)}];
+  d[2].hidden = state.mode !== 'earth';
+  d[2].data = [{x:0,y:T_OBS},{x:cap,y:T_OBS}];
+  // Measured lab points for the selected jar (only N = 0, 1, 2)
+  d[3].data = (state.mode === 'lab' && state.N <= 2) ? LAB_OBS_POINTS.filter(t => t <= cap).map(t => ({x:t, y:LAB_OBS[t][state.N] + 273.15})) : [];
+  d[3].hidden = d[3].data.length === 0;
+  chart.options.scales.x.max = cap;
+  chart.update('none');
+}
+function pushPoint() { chart.data.datasets[0].data.push({x:state.t, y:state.Ts}); refreshGuides(); }
+
+/* ---------- observation table ---------- */
+function renderTable() {
+  const body = $('tbody'); body.innerHTML = '';
+  state.rows.forEach((t, i) => {
+    const tr = document.createElement('tr');
+    let cells = `<td><input class="field num" type="number" min="0" max="240" step="0.5" value="${t}" data-i="${i}"></td>`;
+    for (let n = 0; n < 3; n++) {
+      const v = tempAt(n, t);
+      const obs = state.mode === 'lab' && LAB_OBS[t] ? LAB_OBS[t][n] : null;
+      const dev = obs === null ? '' : `<span class="dev">lab ${obs.toFixed(1)}, diff ${(v - obs >= 0 ? '+' : '') + (v - obs).toFixed(1)}</span>`;
+      cells += `<td class="num col${n} ${n === state.N ? 'selcol' : ''}">${(state.unit === 'C' ? v : v + 273.15).toFixed(1)} ${unitLbl()}${dev}</td>`;
+    }
+    cells += `<td><button class="x" data-del="${i}" title="Remove row">&times;</button></td>`;
+    tr.innerHTML = cells; body.appendChild(tr);
+  });
+  $('emptyMsg').style.display = state.rows.length ? 'none' : 'block';
+  document.querySelectorAll('th.col0,th.col1,th.col2').forEach((th, n) => th.classList.toggle('selcol', n === state.N));
+}
+$('tbody').addEventListener('change', e => {
+  if (e.target.dataset.i === undefined) return;
+  let v = Math.min(240, Math.max(0, parseFloat(e.target.value) || 0)); state.rows[+e.target.dataset.i] = v; renderTable();
+});
+$('tbody').addEventListener('click', e => { const d = e.target.dataset.del; if (d !== undefined) { state.rows.splice(+d, 1); renderTable(); } });
+$('addRow').onclick = () => { state.rows.push(state.cap); renderTable(); };
+$('dropRow').onclick = () => { state.rows.pop(); renderTable(); };
+$('fillLab').onclick = () => { state.rows = [...LAB_OBS_POINTS]; renderTable(); };
+
+/* ---------- readouts & insight ---------- */
+function updateReadouts() {
+  const f = K => [conv(K).toFixed(1)+' '+unitLbl(), state.unit === 'C' ? K.toFixed(1)+' K' : (K-273.15).toFixed(1)+' \u00B0C'];
+  let [a,b] = f(state.Ts); $('rTs').textContent = a; $('rTsK').textContent = b;
+  [a,b] = f(Teq(state.N)); $('rEq').textContent = a; $('rEqK').textContent = b;
+  $('rT').textContent = state.t.toFixed(1); $('rCap').textContent = state.cap;
+  $('rN').textContent = state.N; $('rNsub').textContent = state.N === 0 ? 'open, no cover' : state.N + (state.N === 1 ? ' film layer' : ' film layers');
+}
+function updateInsight() {
+  const N = state.N, eq = Teq(N), h = [];
+  if (state.mode === 'lab') {
+    const p = labParams(N);
+    h.push(`<p>Each layer of cling film slows the escape of heat from the jar by trapping infrared radiation and suppressing convection. The jar therefore has to warm further before heat loss matches the lamp heating. Fitting your measured equilibria gives ${tex('\\Delta T_{\\mathrm{eq}} \\approx \\Delta T_0\\,(1+0.42\\,N)')}, with ${tex('\\Delta T_0 = 8^{\\circ}\\mathrm{C}')} for the open jar.</p>`);
+    h.push(`<p>For N = ${N} the model settles at ${(eq-273.15).toFixed(1)} \u00B0C with a time constant of about ${p.tau.toFixed(1)} min, so it is within a few percent of equilibrium after roughly three time constants. More layers also settle a little more slowly.</p>`);
+    h.push(`<p class="text-slate-500">The ideal radiative result ${tex('T_s = T_{\\mathrm{eff}}(N+1)^{1/4}')} would predict about ${(LAB_T0*Math.pow(2,0.25)-273.15).toFixed(0)} \u00B0C for one layer. Real film is only partly opaque and the jar loses heat by convection and conduction, so the measured warming is much smaller. That is why the jar mode uses a calibrated fit.</p>`);
+  } else {
+    const te = Teff();
+    if (N === 0) h.push(`<p>With no atmosphere the surface radiates the absorbed sunlight straight to space, so ${tex('\\sigma T_s^4 = \\sigma T_{\\mathrm{eff}}^4')} and ${tex('T_s = T_{\\mathrm{eff}}')} = ${te.toFixed(0)} K (${(te-273.15).toFixed(0)} \u00B0C). Add a layer to see the greenhouse effect.</p>`);
+    else {
+      h.push(`<p>Each layer passes sunlight but absorbs all infrared and re-emits it equally up and down. In steady state the top layer sends the absorbed solar flux to space, and every lower interface carries the same net flux, giving ${tex('\\sigma T_s^4 = (N+1)\\,\\sigma T_{\\mathrm{eff}}^4')}.</p>`);
+      h.push(`<p>With N = ${N} the surface must radiate ${N+1} times the escaping flux, raising it from ${te.toFixed(0)} K to ${eq.toFixed(0)} K (${(eq-273.15).toFixed(0)} \u00B0C). Since ${tex('T_s \\propto (N+1)^{1/4}')}, each extra layer adds less warming than the last.</p>`);
+    }
+    const gap = eq - T_OBS;
+    h.push(`<p class="text-slate-500">${Math.abs(gap) < 3 ? 'This is close to the observed 288 K.' : gap > 0 ? `This overshoots the observed 288 K by ${gap.toFixed(0)} K.` : `This is ${(-gap).toFixed(0)} K below the observed 288 K.`} The purely radiative model ignores convection and latent heat, which is why N = 1 gives about 303 K.</p>`);
+  }
+  $('insight').innerHTML = h.join('');
+}
+
+/* ---------- canvas scene ---------- */
+const cv = $('scene'), ctx = cv.getContext('2d');
+let W = 0, H = 0;
+function resize() { const d = window.devicePixelRatio || 1; W = cv.clientWidth; H = cv.clientHeight; cv.width = W*d; cv.height = H*d; ctx.setTransform(d,0,0,d,0,0); }
+window.addEventListener('resize', resize);
+const GROUND_H = 64, LEFT = 66, RIGHT = 88;
+const groundY = () => H - GROUND_H;
+function boundaries() { // yb[0]=surface, yb[1..N]=layers, yb[N+1]=space
+  const N = state.N, g = groundY(), step = (g - 64) / (N + 1), yb = [g];
+  for (let k = 1; k <= N; k++) yb.push(g - k * step);
+  yb.push(0); return yb;
+}
+let yellow = [], red = [], accY = 0, accR = 0;
+function photons(dt) {
+  const yb = boundaries(), N = state.N, g = groundY(), x0 = LEFT + 10, x1 = W - RIGHT - 10;
+  accY = Math.min(3, accY + dt * 3.5 * (state.S / 1200));
+  while (accY >= 1 && yellow.length < 90) { accY--; yellow.push({ x: x0 + Math.random()*(x1-x0), y:-6 }); }
+  for (const p of yellow) p.y += 190 * dt;
+  yellow = yellow.filter(p => p.y < g);
+
+  accR = Math.min(3, accR + dt * Math.min(40, 6 * Math.pow(state.Ts / 288, 4)));
+  while (accR >= 1 && red.length < 260) { accR--; red.push({ x: x0 + Math.random()*(x1-x0), y:g-2, dir:-1, g:0 }); }
+  for (const p of red) {
+    p.y += p.dir * 120 * dt;
+    if (p.dir < 0 && p.y <= yb[p.g+1]) {
+      if (p.g === N) p.dead = true;                                 // escapes to space
+      else { p.y = yb[p.g+1]; if (Math.random() < .5) p.g++; else p.dir = 1; }
+    } else if (p.dir > 0 && p.y >= yb[p.g]) {
+      p.y = yb[p.g];
+      if (p.g === 0) p.dir = -1; else if (Math.random() < .5) p.g--; else p.dir = -1;
+    }
+  }
+  red = red.filter(p => !p.dead);
+}
+function mix(a, b, t) { return a.map((v,i) => Math.round(v + (b[i]-v)*t)); }
+function draw() {
+  const g = groundY(), yb = boundaries(), N = state.N, earth = state.mode === 'earth';
+  ctx.clearRect(0,0,W,H);
+  const sky = ctx.createLinearGradient(0,0,0,g); sky.addColorStop(0,'#0f172a'); sky.addColorStop(1,'#1e293b');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,g);
+
+  const warmOf = T => earth ? (T-230)/200 : (T-293)/20;
+  for (let k = 1; k <= N; k++) {
+    const y = yb[k];
+    const tk = earth ? state.Ts * Math.pow((N-k+1)/(N+1), 0.25) : LAB_T0 + (state.Ts-LAB_T0)*(N-k+1)/(N+1);
+    const c = mix([96,165,250],[251,146,60], Math.min(1, Math.max(0, warmOf(tk))));
+    ctx.fillStyle = `rgba(${c},.30)`; ctx.fillRect(LEFT, y-7, W-LEFT-RIGHT, 14);
+    ctx.fillStyle = `rgba(${c},.95)`; ctx.fillRect(LEFT, y-1, W-LEFT-RIGHT, 2);
+    // numbered marker on the left so each layer is clearly labelled
+    ctx.fillStyle = `rgb(${c})`; ctx.beginPath(); ctx.arc(32, y, 13, 0, 7); ctx.fill();
+    ctx.fillStyle = '#0f172a'; ctx.font = '600 13px ui-sans-serif, system-ui'; ctx.textAlign = 'center'; ctx.fillText(k, 32, y+4.5);
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '11px ui-sans-serif, system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(earth ? `Layer ${k}  ${tk.toFixed(0)} K` : `Layer ${k}`, W-RIGHT+8, y+4);
+  }
+  // Ground
+  const gc = mix([51,65,85],[217,119,6], Math.min(1, Math.max(0, earth ? (state.Ts-230)/250 : (state.Ts-LAB_T0)/18)));
+  ctx.fillStyle = `rgb(${gc})`; ctx.fillRect(0,g,W,GROUND_H);
+  ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.textAlign = 'left'; ctx.font = '600 12px ui-sans-serif, system-ui';
+  ctx.fillText(earth ? 'Surface' : 'Jar base', 12, g+24);
+  ctx.font = '12px ui-sans-serif, system-ui';
+  ctx.fillText(`${(state.Ts-273.15).toFixed(1)} \u00B0C  /  ${state.Ts.toFixed(1)} K`, 12, g+43);
+  ctx.fillStyle = '#94a3b8'; ctx.fillText('Space', W-RIGHT+8, 16);
+  // Photons
+  for (const p of yellow) {
+    ctx.strokeStyle = 'rgba(245,158,11,.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(p.x, p.y-12); ctx.lineTo(p.x, p.y); ctx.stroke();
+    ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fill();
+  }
+  for (const p of red) { ctx.fillStyle = '#f87171'; ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, 7); ctx.fill(); }
+  // Large N badge
+  ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.beginPath(); ctx.roundRect(10, 10, 118, 50, 10); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = '700 26px ui-sans-serif, system-ui'; ctx.fillText(`N = ${N}`, 22, 40);
+  ctx.fillStyle = '#cbd5e1'; ctx.font = '11px ui-sans-serif, system-ui';
+  ctx.fillText(N === 0 ? 'open, no layers' : N === 1 ? '1 layer' : `${N} layers`, 22, 54);
+}
+
+/* ---------- main loop ---------- */
+let prev = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+  if (state.playing) {
+    let adv = dt * speed(), done = false;
+    if (state.t + adv >= state.cap) { adv = state.cap - state.t; done = true; }
+    state.Ts = advance(state.Ts, state.N, adv); state.t += adv;
+    if (state.t - lastPoint >= Math.max(0.05, state.cap / 240) || done) { lastPoint = state.t; pushPoint(); }
+    if (done) setPlaying(false);
+  }
+  photons(state.playing ? dt : dt * 0.6);
+  draw(); updateReadouts();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- UI wiring ---------- */
+function setPlaying(v) { state.playing = v; $('play').textContent = v ? 'Pause' : (state.t >= state.cap - 1e-9 ? 'Run again' : 'Play'); }
+function params() {
+  $('nVal').textContent = state.N; $('sVal').textContent = state.S;
+  $('matNote').textContent = mat().note; refreshGuides(); updateInsight(); renderTable();
+}
+function resetSim() {
+  state.Ts = T0(); state.t = 0; lastPoint = -1; chart.data.datasets[0].data = []; red = []; yellow = [];
+  pushPoint(); setPlaying(true);
+}
+function setCap(v) {
+  v = Math.min(240, Math.max(1, Math.round(+v) || 1)); state.cap = v;
+  $('capNum').value = v; $('capSlider').value = v;
+  if (state.t > v) resetSim(); else { refreshGuides(); if (!state.playing && state.t < v) setPlaying(false); }
+}
+function applyMode(m) {
+  state.mode = m;
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  const lab = m === 'lab';
+  state.S = lab ? 1000 : 1361; $('sSlider').value = state.S;
+  $('sLabel').textContent = lab ? 'Lamp intensity (W/m\u00B2)' : 'Solar flux S (W/m\u00B2)';
+  $('preset').textContent = lab ? 'Lab default' : 'Earth default';
+  state.N = 0; $('nSlider').value = 0; state.mat = 'soil';
+  document.querySelectorAll('#matSeg button').forEach(x => x.classList.toggle('on', x.dataset.m === 'soil'));
+  setCap(lab ? 20 : 180); params(); resetSim();
+}
+$('modeSeg').onclick = e => { const b = e.target.closest('button'); if (b) applyMode(b.dataset.m); };
+$('preset').onclick = () => applyMode(state.mode);
+$('nSlider').oninput = e => { state.N = +e.target.value; red = []; params(); if (!state.playing && state.t < state.cap) setPlaying(false); };
+$('sSlider').oninput = e => { state.S = +e.target.value; params(); };
+$('matSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return; state.mat = b.dataset.m;
+  document.querySelectorAll('#matSeg button').forEach(x => x.classList.toggle('on', x === b)); params();
+};
+$('unitSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return; state.unit = b.dataset.u;
+  document.querySelectorAll('#unitSeg button').forEach(x => x.classList.toggle('on', x === b)); chart.update('none'); updateInsight(); renderTable();
+};
+$('capNum').onchange = e => setCap(e.target.value);
+$('capSlider').oninput = e => setCap(e.target.value);
+$('play').onclick = () => { if (state.t >= state.cap - 1e-9) resetSim(); else setPlaying(!state.playing); };
+$('reset').onclick = resetSim;
+
+/* ---------- init ---------- */
+resize(); applyMode('lab');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
